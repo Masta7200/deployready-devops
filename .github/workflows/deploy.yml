@@ -71,10 +71,19 @@ jobs:
       # Prepare SSH key for remote deployment
       - name: Set up SSH key
         run: |
+          set -e
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "SSH_PRIVATE_KEY secret is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "SSH_HOST secret is missing"
+            exit 1
+          fi
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts || true
 
       # Deploy the Docker image to the remote server
       - name: Deploy to remote VM
