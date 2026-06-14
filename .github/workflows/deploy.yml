@@ -49,8 +49,12 @@ jobs:
 
       # Build Docker image
       - name: Build Docker image
-        run: docker build -t ghcr.io/${{ github.actor }}/kora-api:${{ github.sha }} ./dev-ops/DeployReady
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          docker build -t "ghcr.io/$owner/kora-api:${GITHUB_SHA}" ./dev-ops/DeployReady
 
       # Push Docker image to GHCR
       - name: Push Docker image
-        run: docker push ghcr.io/${{ github.actor }}/kora-api:${{ github.sha }}
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          docker push "ghcr.io/$owner/kora-api:${GITHUB_SHA}"
