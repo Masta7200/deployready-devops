@@ -1,21 +1,59 @@
-name: Deploy
+name: DeployReady CI
+
 on:
   push:
     branches:
       - main
 
 jobs:
-  build-and-push:
+  test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      # Checkout repository code
+      - name: Checkout code
         uses: actions/checkout@v4
 
+      # Setup Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Install application dependencies
+      - name: Install dependencies
+        working-directory: ./dev-ops/DeployReady/app
+        run: npm install
+
+      # Run application tests
+      - name: Run tests
+        working-directory: ./dev-ops/DeployReady/app
+        run: npm test
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # Checkout repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Login to GitHub Container Registry
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # Build Docker image
       - name: Build Docker image
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           docker build -t "ghcr.io/$owner/kora-api:${GITHUB_SHA}" ./dev-ops/DeployReady
 
+      # Push Docker image to GHCR
       - name: Push Docker image
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
@@ -24,8 +62,27 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository code
+      # Checkout repository code (needed for SSH deployment script context)
+      - name: Checkout code
         uses: actions/checkout@v4
 
+      # Prepare SSH key for remote deployment
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
+      # Deploy the Docker image to the remote server
+      - name: Deploy to remote VM
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<EOF
+          docker pull "ghcr.io/$owner/kora-api:${GITHUB_SHA}"
+          docker stop kora-api || true
+          docker rm kora-api || true
+          docker run -d --name kora-api -p 3000:3000 -e PORT=3000 ghcr.io/$owner/kora-api:${GITHUB_SHA}
+          EOF
