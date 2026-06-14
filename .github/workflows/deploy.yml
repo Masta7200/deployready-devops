@@ -10,24 +10,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
+      # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Setup Node.js
+      # Setup Node.js environment
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      # Install dependencies
+      # Install application dependencies
       - name: Install dependencies
-        working-directory: ./app
+        working-directory: ./dev-ops/DeployReady/app
         run: npm install
 
-      # Run tests
+      # Run application tests
       - name: Run tests
-        working-directory: ./app
+        working-directory: ./dev-ops/DeployReady/app
         run: npm test
 
   build:
@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
+      # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build Docker image only (no push yet)
+      # Build Docker image
       - name: Build Docker image
-        run: docker build -t kora-api:${{ github.sha }} .
+        run: docker build -t kora-api:${{ github.sha }} ./dev-ops/DeployReady
