@@ -58,3 +58,31 @@ jobs:
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           docker push "ghcr.io/$owner/kora-api:${GITHUB_SHA}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository code (needed for SSH deployment script context)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Prepare SSH key for remote deployment
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # Deploy the Docker image to the remote server
+      - name: Deploy to remote VM
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<EOF
+          docker pull "ghcr.io/$owner/kora-api:${GITHUB_SHA}"
+          docker stop kora-api || true
+          docker rm kora-api || true
+          docker run -d --name kora-api -p 3000:3000 -e PORT=3000 ghcr.io/$owner/kora-api:${GITHUB_SHA}
+          EOF
