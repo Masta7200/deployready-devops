@@ -30,15 +30,27 @@ jobs:
         working-directory: ./dev-ops/DeployReady/app
         run: npm test
 
-  build:
+  build-and-push:
     needs: test
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Login to GitHub Container Registry
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       # Build Docker image
       - name: Build Docker image
-        run: docker build -t kora-api:${{ github.sha }} ./dev-ops/DeployReady
+        run: docker build -t ghcr.io/${{ github.actor }}/kora-api:${{ github.sha }} ./dev-ops/DeployReady
+
+      # Push Docker image to GHCR
+      - name: Push Docker image
+        run: docker push ghcr.io/${{ github.actor }}/kora-api:${{ github.sha }}
