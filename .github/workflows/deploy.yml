@@ -1,3 +1,4 @@
+
 name: DeployReady CI
 
 on:
@@ -47,7 +48,7 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # Build Docker image
+      # Build Docker image and tag with commit SHA
       - name: Build Docker image
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
@@ -64,11 +65,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository code (needed for SSH deployment script context)
+      # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Prepare SSH key for remote deployment
+      # Configure SSH private key
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
@@ -76,13 +77,29 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      # Deploy the Docker image to the remote server
-      - name: Deploy to remote VM
+      # Deploy updated container to EC2 server
+      - name: Deploy to EC2
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<EOF
-          docker pull "ghcr.io/$owner/kora-api:${GITHUB_SHA}"
+
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << EOF
+
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+          # Pull latest image
+          docker pull ghcr.io/$owner/kora-api:${GITHUB_SHA}
+
+          # Stop and remove old container
           docker stop kora-api || true
           docker rm kora-api || true
-          docker run -d --name kora-api -p 3000:3000 -e PORT=3000 ghcr.io/$owner/kora-api:${GITHUB_SHA}
+
+          # Start updated container
+          docker run -d \
+            --name kora-api \
+            -p 80:3000 \
+            -e PORT=3000 \
+            ghcr.io/$owner/kora-api:${GITHUB_SHA}
+
           EOF
+
